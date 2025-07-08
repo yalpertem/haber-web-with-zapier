@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Haber Akışı</title>
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Tailwind CSS CDN (isteğe bağlı, kolay stil için) -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6">Haber Akışı</h1>
+
+        <div v-if="loading" class="text-center">Yükleniyor...</div>
+        <div v-if="error" class="text-red-600">{{ error }}</div>
+
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3" v-if="!loading">
+            <div v-for="item in news" :key="item.kaynak_id" class="bg-white rounded-xl shadow p-4 flex flex-col">
+                <img :src="item.imaj_url" alt="" class="rounded-md mb-4 object-cover h-48 w-full">
+                <h2 class="text-xl font-semibold mb-2">{{ item.baslik }}</h2>
+                <p class="text-sm text-gray-600 mb-2">
+                    Kaynak: {{ item.kaynak_adi }} &bull; {{ new Date(item.tarih).toLocaleString('tr-TR') }}
+                </p>
+                <p class="flex-grow">{{ item.aciklama }}</p>
+                <a :href="item.url" target="_blank" class="mt-4 text-blue-600 hover:underline">Haberi Oku →</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    news: [],
+                    loading: true,
+                    error: null
+                };
+            },
+            mounted() {
+                /*
+                  === Ayar Bölümü ===
+                  1. Google Sheets dosyanızı "Dosya → Web'de yayınla" diyerek herkese açık yayınlayın.
+                  2. Aşağıdaki sheetID ve sheetName değerlerini kendi belgenize göre güncelleyin.
+                  3. İsterseniz query değişkenine SQL‑benzeri sorgu yazarak filtreleme yapabilirsiniz.
+                */
+                const sheetID = '1rozC0b_s3DLW2Asblad9M_D2WC7VtXdhi-eiJVsWu7k';   // <-- Google Sheets ID'nizi buraya yazın
+                const sheetName = 'Sheet1';   // <-- Çekmek istediğiniz sekme adı
+                const query = 'select *';     // ← İstediğiniz sorgu (varsayılan: tüm satırlar)
+
+                const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&sheet=${sheetName}&tq=${encodeURIComponent(query)}`;
+
+                fetch(url)
+                    .then(res => res.text())
+                    .then(txt => {
+                        // Google Visualization API dökümanı JSONP olarak döner → Diğer kısmı kesiyoruz
+                        const json = JSON.parse(txt.substring(txt.indexOf('{'), txt.lastIndexOf('}') + 1));
+                        this.news = json.table.rows.map(r => {
+                            const c = r.c; // kısayol
+                            const val = i => c[i] ? c[i].v : '';
+                            return {
+                                kaynak_id: val(0),
+                                kaynak_adi: val(1),
+                                yazar: val(2),
+                                baslik: val(3),
+                                aciklama: val(4),
+                                url: val(5),
+                                imaj_url: val(6),
+                                tarih: val(7),
+                                icerik: val(8)
+                            };
+                        });
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        this.error = 'Veri alınırken hata oluştu.';
+                    })
+                    .finally(() => {
+                        this.loading = false;
+                    });
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>
